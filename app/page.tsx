@@ -80,9 +80,10 @@ export default function Home() {
         },
 
         body: JSON.stringify({
-          wireframe: wireframe,
-          editPrompt: editPrompt,
-        }),
+  wireframe: wireframe,
+  editPrompt: editPrompt,
+  originalPrompt: prompt,
+}),
       });
 
       const data = await response.json();
