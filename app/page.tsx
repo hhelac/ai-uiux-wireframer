@@ -5,8 +5,11 @@ import { toJpeg } from "html-to-image";
 import jsPDF from "jspdf";
 import GeneratedWireframe from "@/components/GeneratedWireframe";
 import { Wireframe } from "@/types/wireframe";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabase/client";
 
 export default function Home() {
+  const router = useRouter();
   const [showEditBox, setShowEditBox] = useState(false);
 
   const [prompt, setPrompt] = useState("");
@@ -23,7 +26,19 @@ export default function Home() {
 const [showDownloadMenu, setShowDownloadMenu] = useState(false);
 const [downloading, setDownloading] = useState(false);
 
-  async function downloadAsJpg() {
+  async function openAccount() {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    router.push("/account");
+  } else {
+    router.push("/login");
+  }
+}
+
+async function downloadAsJpg() {
   if (!designRef.current || !wireframe) {
     return;
   }
@@ -232,7 +247,9 @@ async function generateWireframe() {
         <div className="flex flex-1 items-center justify-around font-mono font-bold">
           <button>Workspace</button>
           <button>My projects</button>
-          <button>My account</button>
+          <button onClick={openAccount}>
+  My account
+</button>
         </div>
       </nav>
 
