@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toJpeg } from "html-to-image";
+import jsPDF from "jspdf";
 import GeneratedWireframe from "@/components/GeneratedWireframe";
 import { Wireframe } from "@/types/wireframe";
 
@@ -16,8 +18,119 @@ export default function Home() {
   const [editing, setEditing] = useState(false);
 
   const [error, setError] = useState("");
+  const designRef = useRef<HTMLDivElement>(null);
 
-  async function generateWireframe() {
+const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+const [downloading, setDownloading] = useState(false);
+
+  async function downloadAsJpg() {
+  if (!designRef.current || !wireframe) {
+    return;
+  }
+
+  setDownloading(true);
+
+  try {
+    const dataUrl = await toJpeg(designRef.current, {
+      quality: 0.95,
+      pixelRatio: 2,
+      backgroundColor: wireframe.design.theme === "dark" ? "#0b0d10" : "#f8f8f6",
+    });
+
+    const link = document.createElement("a");
+
+    link.download = `${wireframe.title || "design"}.jpg`;
+    link.href = dataUrl;
+
+    link.click();
+
+    setShowDownloadMenu(false);
+  } catch (error) {
+    console.error("JPG download failed:", error);
+    setError("Failed to download JPG.");
+  } finally {
+    setDownloading(false);
+  }
+}
+
+async function downloadAsPdf() {
+  if (!designRef.current || !wireframe) {
+    return;
+  }
+
+  setDownloading(true);
+
+  try {
+    const dataUrl = await toJpeg(designRef.current, {
+      quality: 0.95,
+      pixelRatio: 2,
+      backgroundColor: wireframe.design.theme === "dark" ? "#0b0d10" : "#f8f8f6",
+    });
+
+    const image = new Image();
+
+    image.src = dataUrl;
+
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Image failed to load."));
+    });
+
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = 210;
+    const pageHeight = 297;
+
+    const imageWidth = pageWidth;
+    const imageHeight = (image.height * imageWidth) / image.width;
+
+    let heightLeft = imageHeight;
+    let position = 0;
+
+    pdf.addImage(
+      dataUrl,
+      "JPEG",
+      0,
+      position,
+      imageWidth,
+      imageHeight
+    );
+
+    heightLeft -= pageHeight;
+
+    while (heightLeft > 0) {
+      position -= pageHeight;
+
+      pdf.addPage();
+
+      pdf.addImage(
+        dataUrl,
+        "JPEG",
+        0,
+        position,
+        imageWidth,
+        imageHeight
+      );
+
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save(`${wireframe.title || "design"}.pdf`);
+
+    setShowDownloadMenu(false);
+  } catch (error) {
+    console.error("PDF download failed:", error);
+    setError("Failed to download PDF.");
+  } finally {
+    setDownloading(false);
+  }
+}
+
+async function generateWireframe() {
     if (!prompt.trim()) {
       setError("Please describe your design first.");
       return;
@@ -159,17 +272,19 @@ export default function Home() {
 
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <div className="h-[530px] overflow-y-auto bg-[#222]">
-            {loading ? (
-              <div className="flex h-full items-center justify-center text-xl text-gray-500">
-                Generating your design...
-              </div>
-            ) : wireframe ? (
-              <GeneratedWireframe wireframe={wireframe} />
-            ) : (
-              <div className="flex h-full items-center justify-center text-xl text-gray-500">
-                Your generated design will appear here
-              </div>
-            )}
+  {loading ? (
+    <div className="flex h-full items-center justify-center text-xl text-gray-500">
+      Generating your design...
+    </div>
+  ) : wireframe ? (
+    <div ref={designRef} className="w-full">
+      <GeneratedWireframe wireframe={wireframe} />
+    </div>
+  ) : (
+    <div className="flex h-full items-center justify-center text-xl text-gray-500">
+      Your generated design will appear here
+    </div>
+  )}
           </div>
 
           {showEditBox && (
@@ -214,12 +329,34 @@ export default function Home() {
             Save
           </button>
 
-          <button
-            disabled={!wireframe}
-            className="rounded-full bg-[#55DDE8] px-4 py-4 font-mono font-bold text-black disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Download
-          </button>
+          <div className="relative">
+  <button
+    onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+    disabled={!wireframe || downloading}
+    className="w-full rounded-full bg-[#55DDE8] px-4 py-4 font-mono font-bold text-black disabled:cursor-not-allowed disabled:opacity-40"
+  >
+    {downloading ? "Exporting..." : "Download"}
+  </button>
+
+  {showDownloadMenu && wireframe && (
+    <div className="absolute right-0 top-[65px] z-50 w-full overflow-hidden rounded-2xl border border-[#55DDE8] bg-[#181818]">
+      <button
+        onClick={downloadAsJpg}
+        className="w-full px-4 py-3 text-left font-mono font-bold text-[#55DDE8] hover:bg-[#2a2a2a]"
+      >
+        JPG
+      </button>
+
+      <button
+        onClick={downloadAsPdf}
+        className="w-full border-t border-[#55DDE8]/30 px-4 py-3 text-left font-mono font-bold text-[#55DDE8] hover:bg-[#2a2a2a]"
+      >
+        PDF
+      </button>
+    </div>
+  )}
+</div>
+
         </aside>
       </section>
     </main>
